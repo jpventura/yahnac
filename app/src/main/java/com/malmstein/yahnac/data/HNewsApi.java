@@ -4,10 +4,12 @@ import android.content.ContentValues;
 import android.text.TextUtils;
 import android.util.Pair;
 
-import com.firebase.client.DataSnapshot;
-import com.firebase.client.Firebase;
-import com.firebase.client.FirebaseError;
-import com.firebase.client.ValueEventListener;
+import com.google.firebase.FirebaseException;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 import com.malmstein.yahnac.comments.parser.CommentsParser;
 import com.malmstein.yahnac.comments.parser.VoteUrlParser;
 import com.malmstein.yahnac.injection.Inject;
@@ -48,6 +50,7 @@ public class HNewsApi {
         return Observable.create(new Observable.OnSubscribe<DataSnapshot>() {
             @Override
             public void call(final Subscriber<? super DataSnapshot> subscriber) {
+                // FIXME: Use Firebase Tasks
                 Firebase topStories = getStoryFirebase(FILTER);
                 topStories.addValueEventListener(new ValueEventListener() {
                     @Override
@@ -61,7 +64,7 @@ public class HNewsApi {
                     }
 
                     @Override
-                    public void onCancelled(FirebaseError firebaseError) {
+                    public void onCancelled(DatabaseError firebaseError) {
                         Log.d(firebaseError.getCode());
                     }
                 });
@@ -88,7 +91,7 @@ public class HNewsApi {
                 return Observable.create(new Observable.OnSubscribe<ContentValues>() {
                     @Override
                     public void call(final Subscriber<? super ContentValues> subscriber) {
-                        final Firebase story = new Firebase("https://hacker-news.firebaseio.com/v0/item/" + storyRoot.second);
+                        final DatabaseReference story = getDatabaseReference().child("item").child(Long.toString(storyRoot.second));
                         story.addValueEventListener(new ValueEventListener() {
                             @Override
                             public void onDataChange(DataSnapshot dataSnapshot) {
@@ -106,7 +109,7 @@ public class HNewsApi {
                             }
 
                             @Override
-                            public void onCancelled(FirebaseError firebaseError) {
+                            public void onCancelled(DatabaseError firebaseError) {
                                 Log.d(firebaseError.getCode());
                                 Inject.crashAnalytics().logSomethingWentWrong("HNewsApi: onCancelled " + firebaseError.getMessage());
                                 subscriber.onCompleted();
@@ -154,7 +157,7 @@ public class HNewsApi {
         return storyValues;
     }
 
-    private Firebase getStoryFirebase(Story.FILTER FILTER) {
+    private DatabaseReference getStoryFirebase(Story.FILTER FILTER) {
         switch (FILTER) {
             case show:
                 return new Firebase("https://hacker-news.firebaseio.com/v0/showstories");
@@ -165,6 +168,10 @@ public class HNewsApi {
             default:
                 return new Firebase("https://hacker-news.firebaseio.com/v0/topstories");
         }
+    }
+
+    private DatabaseReference getDatabaseReference() {
+        return FirebaseDatabase.getInstance().getReference().child("v0/");
     }
 
     Observable<Vector<ContentValues>> getCommentsFromStory(Long storyId) {
